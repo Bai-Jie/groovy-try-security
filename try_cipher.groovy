@@ -21,9 +21,24 @@ byte[] encrypt(Key key, byte[] plaintext) throws Exception {
     }
 }
 
+byte[] encrypt(String transformation, Key key, def params, byte[] plaintext) throws Exception {
+    return Cipher.getInstance(transformation).with {
+        init Cipher.ENCRYPT_MODE, key, params
+        doFinal plaintext
+    }
+}
+
 byte[] decrypt(Key key, byte[] ciphertext) throws Exception {
     Cipher.getInstance(key.algorithm).with {
         init Cipher.DECRYPT_MODE, key
+        doFinal ciphertext
+    }
+}
+
+
+byte[] decrypt(String transformation, Key key, def params, byte[] ciphertext) throws Exception {
+    Cipher.getInstance(transformation).with {
+        init Cipher.DECRYPT_MODE, key, params
         doFinal ciphertext
     }
 }
@@ -42,11 +57,23 @@ def printKey(Key key, String title) {
 
 Map encryptAndDecrypt(Key encryptKey, Key decryptKey, byte[] plaintext) {
     def result = [:]
-    result.plaintext = plaintext
     result.encryptKey = encryptKey
     result.decryptKey = decryptKey
+    result.plaintext = plaintext
     result.ciphertext = encrypt result.encryptKey, result.plaintext
     result.decrypted = decrypt result.decryptKey, result.ciphertext
+    return result
+}
+
+Map encryptAndDecrypt(String transformation, Key encryptKey, Key decryptKey, def params, byte[] plaintext) {
+    def result = [:]
+    result.transformation = transformation
+    result.encryptKey = encryptKey
+    result.decryptKey = decryptKey
+    result.params = params
+    result.plaintext = plaintext
+    result.ciphertext = encrypt transformation, result.encryptKey, params, result.plaintext
+    result.decrypted = decrypt transformation, result.decryptKey, params, result.ciphertext
     return result
 }
 
@@ -112,13 +139,14 @@ newKeyPair 'RSA' with {
 
 
 
-// encrypt image
+// #################### encrypt image ####################
 
 println '---------------------'
 println 'encrypt image\n'
 
 import javax.imageio.ImageIO
 import java.nio.ByteBuffer
+import javax.crypto.spec.IvParameterSpec
 
 { ->
 
@@ -134,7 +162,7 @@ ImageIO.write(image, "png", new File('before_encrypte.png'))
 
 def key = newSecretKey 'AES'
 println 'encrypt and decrypt'
-def result = encryptAndDecrypt(key, key, buffer.array())
+def result = encryptAndDecrypt 'AES/CBC/PKCS5Padding', key, key, new IvParameterSpec([0] * 16 as byte[]), buffer.array()
 
 buffer.clear()
 buffer.put(result.ciphertext, 0, buffer.capacity())
