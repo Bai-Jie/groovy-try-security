@@ -152,6 +152,7 @@ import java.nio.ByteBuffer
 @Field private static final String OUTPUT_DIR = 'output'
 
 def encryptImage(String transformation, Key encryptKey, Key decryptKey, def params) {
+    println "### encrypt image with $transformation"
     def outputDir = Files.createDirectories Paths.get(OUTPUT_DIR, transformation.replaceAll('[^a-zA-Z0-9.-]', '_')) toFile()
 
     def image = ImageIO.read(new File(ORIGIN_IMAGE_FILE))
@@ -161,12 +162,14 @@ def encryptImage(String transformation, Key encryptKey, Key decryptKey, def para
     def buffer = ByteBuffer.allocate(image.width * image.height * 4)
     buffer.asIntBuffer().put(imageInts)
 
+    println "before_encrypte length: ${buffer.array().length}"
     println 'write before_encrypte.png'
     ImageIO.write(image, "png", new File(outputDir, 'before_encrypte.png'))
 
     println 'encrypt and decrypt'
     def result = encryptAndDecrypt transformation, encryptKey, decryptKey, params, buffer.array()
 
+    println "ciphertext length: ${result.ciphertext.length}"
     buffer.clear()
     buffer.put(result.ciphertext, 0, buffer.capacity())
     buffer.flip()
@@ -175,6 +178,7 @@ def encryptImage(String transformation, Key encryptKey, Key decryptKey, def para
     println 'write encrypted.png'
     ImageIO.write(image, "png", new File(outputDir, 'encrypted.png'))
 
+    println "decrypted length: ${result.decrypted.length}"
     buffer.clear()
     buffer.put(result.decrypted, 0, buffer.capacity())
     buffer.flip()
@@ -182,6 +186,7 @@ def encryptImage(String transformation, Key encryptKey, Key decryptKey, def para
     image.setRGB(0, 0, image.width, image.height, imageInts, 0, image.width)
     println 'write decrypted.png'
     ImageIO.write(image, "png", new File(outputDir, 'decrypted.png'))
+    println '### finished successfully\n'
 }
 
 import javax.crypto.spec.IvParameterSpec
