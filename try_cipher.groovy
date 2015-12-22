@@ -141,45 +141,63 @@ newKeyPair 'RSA' with {
 
 // #################### encrypt image ####################
 
+import groovy.transform.Field
+import java.nio.file.Paths
+import java.nio.file.Files
+import javax.imageio.ImageIO
+import java.nio.ByteBuffer
+
+
+@Field private static final String ORIGIN_IMAGE_FILE = 'origin.png'
+@Field private static final String OUTPUT_DIR = 'output'
+
+def encryptImage(String transformation, Key encryptKey, Key decryptKey, def params) {
+    def outputDir = Files.createDirectories Paths.get(OUTPUT_DIR, transformation.replaceAll('[^a-zA-Z0-9.-]', '_')) toFile()
+
+    def image = ImageIO.read(new File(ORIGIN_IMAGE_FILE))
+    println "width: ${image.width}\nheight: ${image.height}"
+    int[] imageInts = new int[image.width * image.height]
+    image.getRGB(0, 0, image.width, image.height, imageInts, 0, image.width)
+    def buffer = ByteBuffer.allocate(image.width * image.height * 4)
+    buffer.asIntBuffer().put(imageInts)
+
+    println 'write before_encrypte.png'
+    ImageIO.write(image, "png", new File(outputDir, 'before_encrypte.png'))
+
+    println 'encrypt and decrypt'
+    def result = encryptAndDecrypt transformation, encryptKey, decryptKey, params, buffer.array()
+
+    buffer.clear()
+    buffer.put(result.ciphertext, 0, buffer.capacity())
+    buffer.flip()
+    buffer.asIntBuffer().get(imageInts)
+    image.setRGB(0, 0, image.width, image.height, imageInts, 0, image.width)
+    println 'write encrypted.png'
+    ImageIO.write(image, "png", new File(outputDir, 'encrypted.png'))
+
+    buffer.clear()
+    buffer.put(result.decrypted, 0, buffer.capacity())
+    buffer.flip()
+    buffer.asIntBuffer().get(imageInts)
+    image.setRGB(0, 0, image.width, image.height, imageInts, 0, image.width)
+    println 'write decrypted.png'
+    ImageIO.write(image, "png", new File(outputDir, 'decrypted.png'))
+}
+
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.GCMParameterSpec
+
 println '---------------------'
 println 'encrypt image\n'
 
-import javax.imageio.ImageIO
-import java.nio.ByteBuffer
-import javax.crypto.spec.IvParameterSpec
-
-{ ->
-
-def image = ImageIO.read(new File('origin.png'))
-println "width: ${image.width}\nheight: ${image.height}"
-int[] imageInts = new int[image.width * image.height]
-image.getRGB(0, 0, image.width, image.height, imageInts, 0, image.width)
-def buffer = ByteBuffer.allocate(image.width * image.height * 4)
-buffer.asIntBuffer().put(imageInts)
-
-println 'write before_encrypte.png'
-ImageIO.write(image, "png", new File('before_encrypte.png'))
-
-def key = newSecretKey 'AES'
-println 'encrypt and decrypt'
-def result = encryptAndDecrypt 'AES/CBC/PKCS5Padding', key, key, new IvParameterSpec([0] * 16 as byte[]), buffer.array()
-
-buffer.clear()
-buffer.put(result.ciphertext, 0, buffer.capacity())
-buffer.flip()
-buffer.asIntBuffer().get(imageInts)
-image.setRGB(0, 0, image.width, image.height, imageInts, 0, image.width)
-println 'write encrypted.png'
-ImageIO.write(image, "png", new File('encrypted.png'))
-
-buffer.clear()
-buffer.put(result.decrypted, 0, buffer.capacity())
-buffer.flip()
-buffer.asIntBuffer().get(imageInts)
-image.setRGB(0, 0, image.width, image.height, imageInts, 0, image.width)
-println 'write decrypted.png'
-ImageIO.write(image, "png", new File('decrypted.png'))
-
-}()
+newSecretKey('AES').with {
+    encryptImage 'AES', it, it, null
+    encryptImage 'AES/ECB/PKCS5Padding', it, it, null
+    // javax.crypto.IllegalBlockSizeException: Input length not multiple of 16 bytes
+    //encryptImage 'AES/ECB/NoPadding', it, it, null
+    //encryptImage 'AES/CBC/NoPadding', it, it, new IvParameterSpec([0] * 16 as byte[])
+    encryptImage 'AES/CBC/PKCS5Padding', it, it, new IvParameterSpec([0] * 16 as byte[])
+    encryptImage 'AES/GCM/NoPadding', it, it, new GCMParameterSpec(128, [0] * 16 as byte[])
+}
 
 System.gc()
